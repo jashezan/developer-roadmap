@@ -1,0 +1,1 @@
+import"./captcha.09bb5566.js";import"./topic.1fb14de7.js";import"./analytics.16b8e475.js";import"./popup.1b4ea512.js";import"./topics.0384721b.js";document.querySelectorAll("[faq-question]").forEach(e=>{e.addEventListener("click",()=>{document.querySelectorAll("[faq-answer]").forEach(i=>{i.classList.add("hidden")});const t=e.nextElementSibling;t&&t.classList.remove("hidden")})});
