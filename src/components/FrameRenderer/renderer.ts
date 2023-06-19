@@ -1,12 +1,20 @@
 import { wireframeJSONToSVG } from 'roadmap-renderer';
+import { httpPost } from '../../lib/http';
+import { isLoggedIn } from '../../lib/jwt';
 import {
+  refreshProgressCounters,
   renderResourceProgress,
+  renderTopicProgress,
+  ResourceProgressType,
   ResourceType,
+  updateResourceProgress,
 } from '../../lib/resource-progress';
+import { pageProgressMessage } from '../../stores/page';
+import { showLoginPopup } from '../../lib/popup';
 
 export class Renderer {
   resourceId: string;
-  resourceType: string;
+  resourceType: ResourceType | string;
   jsonUrl: string;
   loaderHTML: string | null;
 
@@ -26,8 +34,10 @@ export class Renderer {
     this.onDOMLoaded = this.onDOMLoaded.bind(this);
     this.jsonToSvg = this.jsonToSvg.bind(this);
     this.handleSvgClick = this.handleSvgClick.bind(this);
+    this.handleSvgRightClick = this.handleSvgRightClick.bind(this);
     this.prepareConfig = this.prepareConfig.bind(this);
     this.switchRoadmap = this.switchRoadmap.bind(this);
+    this.updateTopicStatus = this.updateTopicStatus.bind(this);
   }
 
   get loaderEl() {
@@ -49,7 +59,6 @@ export class Renderer {
 
     this.resourceType = dataset.resourceType!;
     this.resourceId = dataset.resourceId!;
-    this.jsonUrl = dataset.jsonUrl!;
 
     return true;
   }
@@ -104,6 +113,19 @@ export class Renderer {
       });
   }
 
+  trackVisit() {
+    if (!isLoggedIn()) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      httpPost(`${import.meta.env.PUBLIC_API_URL}/v1-visit`, {
+        resourceId: this.resourceId,
+        resourceType: this.resourceType,
+      }).then(() => null);
+    }, 0);
+  }
+
   onDOMLoaded() {
     if (!this.prepareConfig()) {
       return;
@@ -112,14 +134,22 @@ export class Renderer {
     const urlParams = new URLSearchParams(window.location.search);
     const roadmapType = urlParams.get('r');
 
+    this.trackVisit();
+
     if (roadmapType) {
-      this.switchRoadmap(`/jsons/roadmaps/${roadmapType}.json`);
+      this.switchRoadmap(`/${roadmapType}.json`);
     } else {
-      this.jsonToSvg(this.jsonUrl);
+      this.jsonToSvg(
+        this.resourceType === 'roadmap'
+          ? `/${this.resourceId}.json`
+          : `/best-practices/${this.resourceId}.json`
+      );
     }
   }
 
   switchRoadmap(newJsonUrl: string) {
+    this.containerEl?.setAttribute('style', '');
+
     const newJsonFileSlug = newJsonUrl.split('/').pop()?.replace('.json', '');
 
     // Update the URL and attach the new roadmap type
@@ -128,25 +158,62 @@ export class Renderer {
       const type = this.resourceType[0]; // r for roadmap, b for best-practices
 
       url.searchParams.delete(type);
-      url.searchParams.set(type, newJsonFileSlug!);
+
+      if (newJsonFileSlug !== this.resourceId) {
+        url.searchParams.set(type, newJsonFileSlug!);
+      }
 
       window.history.pushState(null, '', url.toString());
     }
 
-    const pageType = this.resourceType.replace(/\b\w/g, (l) => l.toUpperCase());
+    this.jsonToSvg(newJsonUrl)?.then(() => {});
+  }
 
-    window.fireEvent({
-      // RoadmapClick, BestPracticesClick, etc
-      category: `${pageType.replace('-', '')}Click`,
-      // roadmap/frontend/switch-version
-      action: `${this.resourceId}/switch-version`,
-      // roadmap/frontend/switch-version
-      label: `${newJsonFileSlug}`,
-    });
+  updateTopicStatus(topicId: string, newStatus: ResourceProgressType) {
+    if (!isLoggedIn()) {
+      showLoginPopup();
+      return;
+    }
 
-    this.jsonToSvg(newJsonUrl)?.then(() => {
-      this.containerEl?.setAttribute('style', '');
-    });
+    pageProgressMessage.set('Updating progress');
+    updateResourceProgress(
+      {
+        resourceId: this.resourceId,
+        resourceType: this.resourceType as ResourceType,
+        topicId,
+      },
+      newStatus
+    )
+      .then(() => {
+        renderTopicProgress(topicId, newStatus);
+        refreshProgressCounters();
+      })
+      .catch((err) => {
+        alert('Something went wrong, please try again.');
+        console.error(err);
+      })
+      .finally(() => {
+        pageProgressMessage.set('');
+      });
+
+    return;
+  }
+
+  handleSvgRightClick(e: any) {
+    const targetGroup = e.target?.closest('g') || {};
+    const groupId = targetGroup.dataset ? targetGroup.dataset.groupId : '';
+    if (!groupId) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const isCurrentStatusDone = targetGroup.classList.contains('done');
+    const normalizedGroupId = groupId.replace(/^\d+-/, '');
+    this.updateTopicStatus(
+        normalizedGroupId,
+        !isCurrentStatusDone ? 'done' : 'pending'
+      );
   }
 
   handleSvgClick(e: any) {
@@ -159,7 +226,17 @@ export class Renderer {
     e.stopImmediatePropagation();
 
     if (/^ext_link/.test(groupId)) {
-      window.open(`https://${groupId.replace('ext_link:', '')}`);
+      const externalLink = groupId.replace('ext_link:', '');
+
+      if (!externalLink.startsWith('roadmap.sh')) {
+        window.fireEvent({
+          category: 'RoadmapExternalLink',
+          action: `${this.resourceType} / ${this.resourceId}`,
+          label: externalLink,
+        });
+      }
+
+      window.open(`https://${externalLink}`);
       return;
     }
 
@@ -187,6 +264,28 @@ export class Renderer {
     // Remove sorting prefix from groupId
     const normalizedGroupId = groupId.replace(/^\d+-/, '');
 
+    const isCurrentStatusLearning = targetGroup.classList.contains('learning');
+    const isCurrentStatusSkipped = targetGroup.classList.contains('skipped');
+
+    if (e.shiftKey) {
+      e.preventDefault();
+      this.updateTopicStatus(
+        normalizedGroupId,
+        !isCurrentStatusLearning ? 'learning' : 'pending'
+      );
+      return;
+    }
+
+    if (e.altKey) {
+      e.preventDefault();
+      this.updateTopicStatus(
+        normalizedGroupId,
+        !isCurrentStatusSkipped ? 'skipped' : 'pending'
+      );
+
+      return;
+    }
+
     window.dispatchEvent(
       new CustomEvent(`${this.resourceType}.topic.click`, {
         detail: {
@@ -201,7 +300,7 @@ export class Renderer {
   init() {
     window.addEventListener('DOMContentLoaded', this.onDOMLoaded);
     window.addEventListener('click', this.handleSvgClick);
-    // window.addEventListener('contextmenu', this.handleSvgClick);
+    window.addEventListener('contextmenu', this.handleSvgRightClick);
   }
 }
 

@@ -1,11 +1,12 @@
 // https://astro.build/config
+import preact from '@astrojs/preact';
 import sitemap from '@astrojs/sitemap';
 import tailwind from '@astrojs/tailwind';
-import { defineConfig } from 'astro/config';
 import compress from 'astro-compress';
+import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
+import { fileURLToPath } from 'node:url';
 import { serializeSitemap, shouldIndexPage } from './sitemap.mjs';
-import preact from '@astrojs/preact';
 
 // https://astro.build/config
 export default defineConfig({
@@ -45,6 +46,22 @@ export default defineConfig({
     format: 'file',
   },
   integrations: [
+    {
+      name: 'client-authenticated',
+      hooks: {
+        'astro:config:setup'(options) {
+          options.addClientDirective({
+            name: 'authenticated',
+            entrypoint: fileURLToPath(
+              new URL(
+                './src/directives/client-authenticated.mjs',
+                import.meta.url
+              )
+            ),
+          });
+        },
+      },
+    },
     tailwind({
       config: {
         applyBaseStyles: false,

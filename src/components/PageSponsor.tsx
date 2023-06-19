@@ -7,6 +7,7 @@ import { sponsorHidden } from '../stores/page';
 export type PageSponsorType = {
   company: string;
   description: string;
+  gaLabel: string;
   imageUrl: string;
   pageUrl: string;
   title: string;
@@ -28,6 +29,18 @@ export function PageSponsor(props: PageSponsorProps) {
   const [sponsor, setSponsor] = useState<PageSponsorType>();
 
   const loadSponsor = async () => {
+    const currentPath = window.location.pathname;
+    if (
+      currentPath === '/' ||
+      currentPath === '/best-practices' ||
+      currentPath === '/roadmaps' ||
+      currentPath.startsWith('/guides') ||
+      currentPath.startsWith('/videos') ||
+      currentPath.startsWith('/account')
+    ) {
+      return;
+    }
+
     const { response, error } = await httpGet<V1GetSponsorResponse>(
       `${import.meta.env.PUBLIC_API_URL}/v1-get-sponsor`,
       {
@@ -49,20 +62,22 @@ export function PageSponsor(props: PageSponsorProps) {
     window.fireEvent({
       category: 'SponsorImpression',
       action: `${response.sponsor?.company} Impression`,
-      label: `${gaPageIdentifier} / ${response.sponsor?.company} Link`,
+      label:
+        response.sponsor.gaLabel ||
+        `${gaPageIdentifier} / ${response.sponsor?.company} Link`,
     });
   };
 
-  // We load the sponsor after 1 second of the page load
   useEffect(() => {
-    loadSponsor();
+    window.setTimeout(loadSponsor);
   }, []);
 
   if ($isSponsorHidden || !sponsor) {
     return null;
   }
 
-  const { url, title, imageUrl, description, company, pageUrl } = sponsor;
+  const { url, title, imageUrl, description, company, gaLabel, pageUrl } =
+    sponsor;
 
   return (
     <a
@@ -74,15 +89,13 @@ export function PageSponsor(props: PageSponsorProps) {
         window.fireEvent({
           category: 'SponsorClick',
           action: `${company} Redirect`,
-          label: `${gaPageIdentifier} / ${company} Link`,
+          label: gaLabel || `${gaPageIdentifier} / ${company} Link`,
         });
       }}
     >
       <span
         class="absolute right-1.5 top-1.5 text-gray-300 hover:text-gray-800"
         aria-label="Close"
-        aria-role="button"
-        close-sponsor
         onClick={(e) => {
           e.preventDefault();
           e.stopImmediatePropagation();
