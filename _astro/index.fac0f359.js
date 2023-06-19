@@ -1,1 +1,0 @@
-import{h as f,p as s}from"./hooks.module.ee390651.js";function d(e,t,u){let i=new Set([...t,void 0]);return e.listen((r,n)=>{i.has(n)&&u(r,n)})}function y(e,t={}){let[,u]=f({});return s(()=>{let i,r,n,l=()=>{i||(i=1,r=setTimeout(()=>{i=void 0,u({})}))};return t.keys?n=d(e,t.keys,l):n=e.listen(l),()=>{n(),clearTimeout(r)}},[e,""+t.keys]),e.get()}export{y as u};
