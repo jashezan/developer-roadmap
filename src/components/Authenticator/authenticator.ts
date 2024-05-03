@@ -33,9 +33,20 @@ function showHideGuestElements(hideOrShow: 'hide' | 'show' = 'hide') {
 function handleGuest() {
   const authenticatedRoutes = [
     '/account/update-profile',
+    '/account/notification',
     '/account/update-password',
+    '/account/settings',
+    '/account/roadmaps',
     '/account/road-card',
+    '/account/friends',
     '/account',
+    '/team',
+    '/team/progress',
+    '/team/activity',
+    '/team/roadmaps',
+    '/team/new',
+    '/team/members',
+    '/team/settings',
   ];
 
   showHideAuthElements('hide');
@@ -63,7 +74,10 @@ function handleAuthenticated() {
 
   // If the user is on a guest route, redirect them to the home page
   if (guestRoutes.includes(window.location.pathname)) {
-    window.location.href = '/';
+    const authRedirect = window.localStorage.getItem('authRedirect') || '/';
+    window.localStorage.removeItem('authRedirect');
+
+    window.location.href = authRedirect;
   }
 }
 

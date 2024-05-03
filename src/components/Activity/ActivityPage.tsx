@@ -1,11 +1,24 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState } from 'react';
 import { httpGet } from '../../lib/http';
 import { ActivityCounters } from './ActivityCounters';
 import { ResourceProgress } from './ResourceProgress';
 import { pageProgressMessage } from '../../stores/page';
 import { EmptyActivity } from './EmptyActivity';
+import { ActivityStream, type UserStreamActivity } from './ActivityStream';
 
-type ActivityResponse = {
+type ProgressResponse = {
+  updatedAt: string;
+  title: string;
+  id: string;
+  learning: number;
+  skipped: number;
+  done: number;
+  total: number;
+  isCustomResource: boolean;
+  roadmapSlug?: string;
+};
+
+export type ActivityResponse = {
   done: {
     today: number;
     total: number;
@@ -13,24 +26,9 @@ type ActivityResponse = {
   learning: {
     today: number;
     total: number;
-    roadmaps: {
-      title: string;
-      id: string;
-      learning: number;
-      done: number;
-      total: number;
-      skipped: number;
-      updatedAt: string;
-    }[];
-    bestPractices: {
-      title: string;
-      id: string;
-      learning: number;
-      done: number;
-      skipped: number;
-      total: number;
-      updatedAt: string;
-    }[];
+    roadmaps: ProgressResponse[];
+    bestPractices: ProgressResponse[];
+    customs: ProgressResponse[];
   };
   streak: {
     count: number;
@@ -48,6 +46,7 @@ type ActivityResponse = {
       resourceTitle?: string;
     };
   }[];
+  activities: UserStreamActivity[];
 };
 
 export function ActivityPage() {
@@ -56,7 +55,7 @@ export function ActivityPage() {
 
   async function loadActivity() {
     const { error, response } = await httpGet<ActivityResponse>(
-      `${import.meta.env.PUBLIC_API_URL}/v1-get-user-stats`
+      `${import.meta.env.PUBLIC_API_URL}/v1-get-user-stats`,
     );
 
     if (!response || error) {
@@ -83,6 +82,30 @@ export function ActivityPage() {
     return null;
   }
 
+  const learningRoadmapsToShow = learningRoadmaps
+    .sort((a, b) => {
+      const updatedAtA = new Date(a.updatedAt);
+      const updatedAtB = new Date(b.updatedAt);
+
+      return updatedAtB.getTime() - updatedAtA.getTime();
+    })
+    .filter((roadmap) => roadmap.learning > 0 || roadmap.done > 0);
+
+  const learningBestPracticesToShow = learningBestPractices
+    .sort((a, b) => {
+      const updatedAtA = new Date(a.updatedAt);
+      const updatedAtB = new Date(b.updatedAt);
+
+      return updatedAtB.getTime() - updatedAtA.getTime();
+    })
+    .filter(
+      (bestPractice) => bestPractice.learning > 0 || bestPractice.done > 0,
+    );
+
+  const hasProgress =
+    learningRoadmapsToShow.length !== 0 ||
+    learningBestPracticesToShow.length !== 0;
+
   return (
     <>
       <ActivityCounters
@@ -91,16 +114,17 @@ export function ActivityPage() {
         streak={activity?.streak || { count: 0 }}
       />
 
-      <div class="mx-0 px-0 py-5 md:-mx-10 md:px-8 md:py-8">
-        {learningRoadmaps.length === 0 &&
-          learningBestPractices.length === 0 && <EmptyActivity />}
+      <div className="mx-0 px-0 py-5 pb-0 md:-mx-10 md:px-8 md:py-8 md:pb-0">
+        {learningRoadmapsToShow.length === 0 &&
+          learningBestPracticesToShow.length === 0 && <EmptyActivity />}
 
-        {(learningRoadmaps.length > 0 || learningBestPractices.length > 0) && (
+        {(learningRoadmapsToShow.length > 0 ||
+          learningBestPracticesToShow.length > 0) && (
           <>
-            <h2 class="mb-3 text-xs uppercase text-gray-400">
+            <h2 className="mb-3 text-xs uppercase text-gray-400">
               Continue Following
             </h2>
-            <div class="flex flex-col gap-3">
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {learningRoadmaps
                 .sort((a, b) => {
                   const updatedAtA = new Date(a.updatedAt);
@@ -108,24 +132,38 @@ export function ActivityPage() {
 
                   return updatedAtB.getTime() - updatedAtA.getTime();
                 })
-                .map((roadmap) => (
-                  <ResourceProgress
-                    doneCount={roadmap.done || 0}
-                    learningCount={roadmap.learning || 0}
-                    totalCount={roadmap.total || 0}
-                    skippedCount={roadmap.skipped || 0}
-                    resourceId={roadmap.id}
-                    resourceType={'roadmap'}
-                    updatedAt={roadmap.updatedAt}
-                    title={roadmap.title}
-                    onCleared={() => {
-                      pageProgressMessage.set('Updating activity');
-                      loadActivity().finally(() => {
-                        pageProgressMessage.set('');
-                      });
-                    }}
-                  />
-                ))}
+                .filter((roadmap) => roadmap.learning > 0 || roadmap.done > 0)
+                .map((roadmap) => {
+                  const learningCount = roadmap.learning || 0;
+                  const doneCount = roadmap.done || 0;
+                  const totalCount = roadmap.total || 0;
+                  const skippedCount = roadmap.skipped || 0;
+
+                  return (
+                    <ResourceProgress
+                      key={roadmap.id}
+                      isCustomResource={roadmap.isCustomResource}
+                      doneCount={
+                        doneCount > totalCount ? totalCount : doneCount
+                      }
+                      learningCount={
+                        learningCount > totalCount ? totalCount : learningCount
+                      }
+                      totalCount={totalCount}
+                      skippedCount={skippedCount}
+                      resourceId={roadmap.id}
+                      resourceType={'roadmap'}
+                      updatedAt={roadmap.updatedAt}
+                      title={roadmap.title}
+                      onCleared={() => {
+                        pageProgressMessage.set('Updating activity');
+                        loadActivity().finally(() => {
+                          pageProgressMessage.set('');
+                        });
+                      }}
+                    />
+                  );
+                })}
 
               {learningBestPractices
                 .sort((a, b) => {
@@ -134,8 +172,14 @@ export function ActivityPage() {
 
                   return updatedAtB.getTime() - updatedAtA.getTime();
                 })
+                .filter(
+                  (bestPractice) =>
+                    bestPractice.learning > 0 || bestPractice.done > 0,
+                )
                 .map((bestPractice) => (
                   <ResourceProgress
+                    isCustomResource={bestPractice.isCustomResource}
+                    key={bestPractice.id}
                     doneCount={bestPractice.done || 0}
                     totalCount={bestPractice.total || 0}
                     learningCount={bestPractice.learning || 0}
@@ -156,6 +200,10 @@ export function ActivityPage() {
           </>
         )}
       </div>
+
+      {hasProgress && (
+        <ActivityStream activities={activity?.activities || []} />
+      )}
     </>
   );
 }

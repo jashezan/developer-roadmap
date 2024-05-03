@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState } from 'react';
 import { EmptyProgress } from './EmptyProgress';
 import { httpGet } from '../../lib/http';
-import { ProgressList } from './ProgressList';
+import { HeroRoadmaps, type HeroTeamRoadmaps } from './HeroRoadmaps';
+import { isLoggedIn } from '../../lib/jwt';
+import type { AllowedMemberRoles } from '../ShareOptions/ShareTeamMemberList.tsx';
 
 export type UserProgressResponse = {
   resourceId: string;
@@ -13,6 +15,13 @@ export type UserProgressResponse = {
   skipped: number;
   total: number;
   updatedAt: Date;
+  isCustomResource: boolean;
+  roadmapSlug?: string;
+  team?: {
+    name: string;
+    id: string;
+    role: AllowedMemberRoles;
+  };
 }[];
 
 function renderProgress(progressList: UserProgressResponse) {
@@ -33,7 +42,7 @@ function renderProgress(progressList: UserProgressResponse) {
           resourceType: progress.resourceType,
           isFavorite: progress.isFavorite,
         },
-      })
+      }),
     );
 
     const totalDone = progress.done + progress.skipped;
@@ -47,10 +56,17 @@ function renderProgress(progressList: UserProgressResponse) {
   });
 }
 
+type ProgressResponse = UserProgressResponse;
+
 export function FavoriteRoadmaps() {
+  const isAuthenticated = isLoggedIn();
+  if (!isAuthenticated) {
+    return null;
+  }
+
   const [isPreparing, setIsPreparing] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [progress, setProgress] = useState<UserProgressResponse>([]);
+  const [progress, setProgress] = useState<ProgressResponse>([]);
   const [containerOpacity, setContainerOpacity] = useState(0);
 
   function showProgressContainer() {
@@ -73,10 +89,9 @@ export function FavoriteRoadmaps() {
   async function loadProgress() {
     setIsLoading(true);
 
-    const { response: progressList, error } =
-      await httpGet<UserProgressResponse>(
-        `${import.meta.env.PUBLIC_API_URL}/v1-get-user-all-progress`
-      );
+    const { response: progressList, error } = await httpGet<ProgressResponse>(
+      `${import.meta.env.PUBLIC_API_URL}/v1-get-hero-roadmaps`,
+    );
 
     if (error || !progressList) {
       return;
@@ -105,19 +120,44 @@ export function FavoriteRoadmaps() {
     return null;
   }
 
-  const hasProgress = progress.length > 0;
+  const hasProgress = progress?.length > 0;
+  const customRoadmaps = progress?.filter(
+    (p) => p.isCustomResource && !p.team?.name,
+  );
+  const defaultRoadmaps = progress?.filter((p) => !p.isCustomResource);
+  const teamRoadmaps: HeroTeamRoadmaps = progress
+    ?.filter((p) => p.isCustomResource && p.team?.name)
+    .reduce((acc: HeroTeamRoadmaps, curr) => {
+      const currTeam = curr.team!;
+      if (!acc[currTeam.name]) {
+        acc[currTeam.name] = [];
+      }
+
+      acc[currTeam.name].push(curr);
+
+      return acc;
+    }, {});
 
   return (
     <div
-      class={`flex min-h-[192px] bg-gradient-to-b transition-opacity duration-500 sm:min-h-[280px] opacity-${containerOpacity} ${
-        hasProgress && `border-t border-t-[#1e293c]`
-      }`}
+      className={`transition-opacity duration-500  opacity-${containerOpacity}`}
     >
-      <div className="container min-h-full">
-        {!isLoading && progress.length == 0 && <EmptyProgress />}
-        {progress.length > 0 && (
-          <ProgressList progress={progress} isLoading={isLoading} />
-        )}
+      <div
+        className={`flex min-h-[192px] bg-gradient-to-b sm:min-h-[280px] ${
+          hasProgress && `border-t border-t-[#1e293c]`
+        }`}
+      >
+        <div className="container min-h-full">
+          {!isLoading && progress?.length == 0 && <EmptyProgress />}
+          {hasProgress && (
+            <HeroRoadmaps
+              teamRoadmaps={teamRoadmaps}
+              customRoadmaps={customRoadmaps}
+              progress={defaultRoadmaps}
+              isLoading={isLoading}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

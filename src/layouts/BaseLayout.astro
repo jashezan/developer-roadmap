@@ -7,12 +7,16 @@ import Footer from '../components/Footer.astro';
 import Navigation from '../components/Navigation/Navigation.astro';
 import OpenSourceBanner from '../components/OpenSourceBanner.astro';
 import { PageProgress } from '../components/PageProgress';
+import { Toaster } from '../components/Toast';
 import { PageSponsor } from '../components/PageSponsor';
 import { siteConfig } from '../lib/config';
 import '../styles/global.css';
+import { PageVisit } from '../components/PageVisit/PageVisit';
+import type { ResourceType } from '../lib/resource-progress';
 
 export interface Props {
   title: string;
+  ogImageUrl?: string;
   // This isn't used anywhere except for the sponsor event labels
   briefTitle?: string;
   redirectUrl?: string;
@@ -23,12 +27,15 @@ export interface Props {
   initialLoadingMessage?: string;
   permalink?: string;
   jsonLd?: Record<string, unknown>[];
+  resourceId?: string;
+  resourceType?: ResourceType;
 }
 
 const {
   title = siteConfig.title,
   briefTitle,
   description = siteConfig.description,
+  ogImageUrl = 'https://roadmap.sh/images/og-img.png',
   keywords = siteConfig.keywords,
   noIndex = false,
   permalink = '',
@@ -36,6 +43,8 @@ const {
   jsonLd = [],
   redirectUrl = '',
   initialLoadingMessage = '',
+  resourceId,
+  resourceType,
 } = Astro.props;
 
 // Remove trailing slashes to consider the page as canonical
@@ -52,7 +61,7 @@ const gaPageIdentifier = Astro.url.pathname
   .replace(/\//g, ':');
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang='en'>
   <head>
     <meta charset='UTF-8' />
@@ -79,7 +88,10 @@ const gaPageIdentifier = Astro.url.pathname
 
     <meta property='og:image:width' content='1200' />
     <meta property='og:image:height' content='630' />
-    <meta property='og:image' content='https://roadmap.sh/images/og-img.png' />
+    <meta
+      property='og:image'
+      content={ogImageUrl || 'https://roadmap.sh/images/og-img.png'}
+    />
     <meta property='og:image:alt' content='roadmap.sh' />
     <meta property='og:site_name' content='roadmap.sh' />
     <meta property='og:title' content={title} />
@@ -133,11 +145,14 @@ const gaPageIdentifier = Astro.url.pathname
     <slot name='after-header' />
     {
       jsonLd.length > 0 && (
-        <script type='application/ld+json' set:html={JSON.stringify(jsonLd)} />
+        <script
+          type='application/ld+json'
+          set:html={JSON.stringify(jsonLd.length === 1 ? jsonLd[0] : jsonLd)}
+        />
       )
     }
   </head>
-  <body>
+  <body class='flex min-h-screen flex-col'>
     <slot name='page-header'>
       <Navigation />
     </slot>
@@ -150,7 +165,11 @@ const gaPageIdentifier = Astro.url.pathname
     </slot>
 
     <Authenticator />
-    <LoginPopup />
+    <slot name='login-popup'>
+      <LoginPopup />
+    </slot>
+
+    <Toaster client:only='react' />
     <CommandMenu client:idle />
     <PageProgress initialMessage={initialLoadingMessage} client:idle />
     <PageSponsor
@@ -161,5 +180,10 @@ const gaPageIdentifier = Astro.url.pathname
     <slot name='after-footer' />
 
     <Analytics />
+    <PageVisit
+      resourceId={resourceId}
+      resourceType={resourceType}
+      client:load
+    />
   </body>
 </html>

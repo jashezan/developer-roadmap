@@ -1,12 +1,12 @@
 // https://astro.build/config
-import preact from '@astrojs/preact';
 import sitemap from '@astrojs/sitemap';
 import tailwind from '@astrojs/tailwind';
-import compress from 'astro-compress';
+import node from '@astrojs/node';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
-import { fileURLToPath } from 'node:url';
 import { serializeSitemap, shouldIndexPage } from './sitemap.mjs';
+
+import react from '@astrojs/react';
 
 // https://astro.build/config
 export default defineConfig({
@@ -28,40 +28,24 @@ export default defineConfig({
               'mailto:',
               'https://github.com/kamranahmedse',
               'https://thenewstack.io',
-              'https://cs.fyi',
+              'https://kamranahmed.info',
               'https://roadmap.sh',
             ];
-
             if (whiteListedStarts.some((start) => href.startsWith(start))) {
               return [];
             }
-
             return 'noopener noreferrer nofollow';
           },
         },
       ],
     ],
   },
-  build: {
-    format: 'file',
-  },
+  output: 'hybrid',
+  adapter: node({
+    mode: 'standalone',
+  }),
+  trailingSlash: 'never',
   integrations: [
-    {
-      name: 'client-authenticated',
-      hooks: {
-        'astro:config:setup'(options) {
-          options.addClientDirective({
-            name: 'authenticated',
-            entrypoint: fileURLToPath(
-              new URL(
-                './src/directives/client-authenticated.mjs',
-                import.meta.url
-              )
-            ),
-          });
-        },
-      },
-    },
     tailwind({
       config: {
         applyBaseStyles: false,
@@ -71,10 +55,6 @@ export default defineConfig({
       filter: shouldIndexPage,
       serialize: serializeSitemap,
     }),
-    compress({
-      css: false,
-      js: false,
-    }),
-    preact(),
+    react(),
   ],
 });

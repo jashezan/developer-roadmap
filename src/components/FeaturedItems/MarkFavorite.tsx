@@ -1,22 +1,36 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState } from 'react';
+import type { MouseEvent } from "react";
 import { httpPatch } from '../../lib/http';
 import type { ResourceType } from '../../lib/resource-progress';
 import { isLoggedIn } from '../../lib/jwt';
 import { showLoginPopup } from '../../lib/popup';
 import { FavoriteIcon } from './FavoriteIcon';
 import { Spinner } from '../ReactIcons/Spinner';
+import { useToast } from '../../hooks/use-toast';
 
 type MarkFavoriteType = {
   resourceType: ResourceType;
   resourceId: string;
   favorite?: boolean;
+  className?: string;
 };
 
-export function MarkFavorite({ resourceId, resourceType, favorite }: MarkFavoriteType) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(favorite ?? false);
+export function MarkFavorite({
+  resourceId,
+  resourceType,
+  favorite,
+  className,
+}: MarkFavoriteType) {
+  const isAuthenticated = isLoggedIn();
+  const localStorageKey = `${resourceType}-${resourceId}-favorite`;
 
-  async function toggleFavoriteHandler(e: Event) {
+  const toast = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(
+      isAuthenticated ? (favorite ?? localStorage.getItem(localStorageKey) === '1') : false
+  );
+
+  async function toggleFavoriteHandler(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     if (!isLoggedIn()) {
       showLoginPopup();
@@ -39,7 +53,8 @@ export function MarkFavorite({ resourceId, resourceType, favorite }: MarkFavorit
 
     if (error) {
       setIsLoading(false);
-      return alert('Failed to update favorite status');
+      toast.error('Failed to update favorite status');
+      return;
     }
 
     // Dispatching an event instead of setting the state because
@@ -55,9 +70,8 @@ export function MarkFavorite({ resourceId, resourceType, favorite }: MarkFavorit
         },
       })
     );
-    window.dispatchEvent(new CustomEvent('refresh-favorites', {}));
 
-    setIsFavorite(!isFavorite);
+    window.dispatchEvent(new CustomEvent('refresh-favorites', {}));
     setIsLoading(false);
   }
 
@@ -70,6 +84,7 @@ export function MarkFavorite({ resourceId, resourceType, favorite }: MarkFavorit
       } = (e as CustomEvent).detail;
       if (id === resourceId && type === resourceType) {
         setIsFavorite(fav);
+        localStorage.setItem(localStorageKey, fav ? '1' : '0');
       }
     };
 
@@ -81,11 +96,12 @@ export function MarkFavorite({ resourceId, resourceType, favorite }: MarkFavorit
 
   return (
     <button
+      aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
       onClick={toggleFavoriteHandler}
       tabIndex={-1}
-      className={`${
-        isFavorite ? '' : 'opacity-30 hover:opacity-100'
-      } absolute right-1.5 top-1.5 z-30 focus:outline-0`}
+      className={`${isFavorite ? '' : 'opacity-30 hover:opacity-100'} ${
+        className || 'absolute right-1.5 top-1.5 z-30 focus:outline-0'
+      }`}
     >
       {isLoading ? <Spinner /> : <FavoriteIcon isFavorite={isFavorite} />}
     </button>

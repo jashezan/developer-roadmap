@@ -1,8 +1,9 @@
-import { useStore } from '@nanostores/preact';
-import { useEffect, useState } from 'preact/hooks';
-import CloseIcon from '../icons/close.svg';
-import { httpGet } from '../lib/http';
+import { useEffect, useState } from 'react';
+import { httpGet, httpPatch, httpPost } from '../lib/http';
 import { sponsorHidden } from '../stores/page';
+import { useStore } from '@nanostores/react';
+import { X } from 'lucide-react';
+import { setViewSponsorCookie } from '../lib/jwt';
 
 export type PageSponsorType = {
   company: string;
@@ -15,6 +16,7 @@ export type PageSponsorType = {
 };
 
 type V1GetSponsorResponse = {
+  id?: string;
   href?: string;
   sponsor?: PageSponsorType;
 };
@@ -26,6 +28,8 @@ type PageSponsorProps = {
 export function PageSponsor(props: PageSponsorProps) {
   const { gaPageIdentifier } = props;
   const $isSponsorHidden = useStore(sponsorHidden);
+
+  const [sponsorId, setSponsorId] = useState<string | null>(null);
   const [sponsor, setSponsor] = useState<PageSponsorType>();
 
   const loadSponsor = async () => {
@@ -36,7 +40,8 @@ export function PageSponsor(props: PageSponsorProps) {
       currentPath === '/roadmaps' ||
       currentPath.startsWith('/guides') ||
       currentPath.startsWith('/videos') ||
-      currentPath.startsWith('/account')
+      currentPath.startsWith('/account') ||
+      currentPath.startsWith('/team')
     ) {
       return;
     }
@@ -45,7 +50,7 @@ export function PageSponsor(props: PageSponsorProps) {
       `${import.meta.env.PUBLIC_API_URL}/v1-get-sponsor`,
       {
         href: window.location.pathname,
-      }
+      },
     );
 
     if (error) {
@@ -58,6 +63,7 @@ export function PageSponsor(props: PageSponsorProps) {
     }
 
     setSponsor(response.sponsor);
+    setSponsorId(response?.id || null);
 
     window.fireEvent({
       category: 'SponsorImpression',
@@ -68,6 +74,20 @@ export function PageSponsor(props: PageSponsorProps) {
     });
   };
 
+  const clickSponsor = async (sponsorId: string) => {
+    const { response, error } = await httpPatch<{ status: 'ok' }>(
+      `${import.meta.env.PUBLIC_API_URL}/v1-view-sponsor/${sponsorId}`,
+      {},
+    );
+
+    if (error || !response) {
+      console.error(error);
+      return;
+    }
+
+    setViewSponsorCookie(sponsorId);
+  };
+
   useEffect(() => {
     window.setTimeout(loadSponsor);
   }, []);
@@ -76,46 +96,44 @@ export function PageSponsor(props: PageSponsorProps) {
     return null;
   }
 
-  const { url, title, imageUrl, description, company, gaLabel, pageUrl } =
-    sponsor;
+  const { url, title, imageUrl, description, company, gaLabel } = sponsor;
 
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener sponsored nofollow"
-      class="fixed bottom-[15px] right-[15px] z-50 flex max-w-[350px] bg-white shadow-lg outline-0 outline-transparent"
-      onClick={() => {
+      className="fixed bottom-[15px] right-[15px] z-50 flex max-w-[350px] bg-white shadow-lg outline-0 outline-transparent"
+      onClick={async () => {
         window.fireEvent({
           category: 'SponsorClick',
           action: `${company} Redirect`,
           label: gaLabel || `${gaPageIdentifier} / ${company} Link`,
         });
+        await clickSponsor(sponsorId || '');
       }}
     >
       <span
-        class="absolute right-1.5 top-1.5 text-gray-300 hover:text-gray-800"
+        className="absolute right-1.5 top-1.5 text-gray-300 hover:text-gray-800"
         aria-label="Close"
         onClick={(e) => {
           e.preventDefault();
-          e.stopImmediatePropagation();
-
           sponsorHidden.set(true);
         }}
       >
-        <img alt="Close" class="h-4 w-4" src={CloseIcon} />
+        <X className="h-4 w-4" />
       </span>
       <img
         src={imageUrl}
-        class="block h-[150px] w-[104.89px] object-contain lg:h-[169px] lg:w-[118.18px]"
+        className="block h-[150px] object-cover lg:h-[169px] lg:w-[118.18px]"
         alt="Sponsor Banner"
       />
-      <span class="flex flex-1 flex-col justify-between text-sm">
-        <span class="p-[10px]">
-          <span class="mb-0.5 block font-semibold">{title}</span>
-          <span class="block text-gray-500">{description}</span>
+      <span className="flex flex-1 flex-col justify-between text-sm">
+        <span className="p-[10px]">
+          <span className="mb-0.5 block font-semibold">{title}</span>
+          <span className="block text-gray-500">{description}</span>
         </span>
-        <span class="sponsor-footer">Partner Content</span>
+        <span className="sponsor-footer">Partner Content</span>
       </span>
     </a>
   );

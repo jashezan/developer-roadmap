@@ -1,19 +1,23 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
-import LinkedIn from '../../icons/linkedin.svg';
-import SpinnerIcon from '../../icons/spinner.svg';
-import { TOKEN_COOKIE_NAME } from '../../lib/jwt';
+import { TOKEN_COOKIE_NAME, setAuthToken } from '../../lib/jwt';
 import { httpGet } from '../../lib/http';
+import { Spinner } from '../ReactIcons/Spinner.tsx';
+import { LinkedInIcon } from '../ReactIcons/LinkedInIcon.tsx';
 
-type LinkedInButtonProps = {};
+type LinkedInButtonProps = {
+  isDisabled?: boolean;
+  setIsDisabled?: (isDisabled: boolean) => void;
+};
 
 const LINKEDIN_REDIRECT_AT = 'linkedInRedirectAt';
 const LINKEDIN_LAST_PAGE = 'linkedInLastPage';
 
 export function LinkedInButton(props: LinkedInButtonProps) {
+  const { isDisabled, setIsDisabled } = props;
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const icon = isLoading ? SpinnerIcon : LinkedIn;
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -26,15 +30,17 @@ export function LinkedInButton(props: LinkedInButtonProps) {
     }
 
     setIsLoading(true);
+    setIsDisabled?.(true);
     httpGet<{ token: string }>(
       `${import.meta.env.PUBLIC_API_URL}/v1-linkedin-callback${
         window.location.search
-      }`
+      }`,
     )
       .then(({ response, error }) => {
         if (!response?.token) {
           setError(error?.message || 'Something went wrong.');
           setIsLoading(false);
+          setIsDisabled?.(false);
 
           return;
         }
@@ -55,29 +61,35 @@ export function LinkedInButton(props: LinkedInButtonProps) {
           }
         }
 
+        const authRedirectUrl = localStorage.getItem('authRedirect');
+        if (authRedirectUrl) {
+          localStorage.removeItem('authRedirect');
+          redirectUrl = authRedirectUrl;
+        }
+
         localStorage.removeItem(LINKEDIN_REDIRECT_AT);
         localStorage.removeItem(LINKEDIN_LAST_PAGE);
-        Cookies.set(TOKEN_COOKIE_NAME, response.token, {
-          path: '/',
-          expires: 30,
-        });
+        setAuthToken(response.token);
         window.location.href = redirectUrl;
       })
       .catch((err) => {
         setError('Something went wrong. Please try again later.');
         setIsLoading(false);
+        setIsDisabled?.(false);
       });
   }, []);
 
   const handleClick = () => {
     setIsLoading(true);
+    setIsDisabled?.(true);
     httpGet<{ loginUrl: string }>(
-      `${import.meta.env.PUBLIC_API_URL}/v1-linkedin-login`
+      `${import.meta.env.PUBLIC_API_URL}/v1-linkedin-login`,
     )
       .then(({ response, error }) => {
         if (!response?.loginUrl) {
           setError(error?.message || 'Something went wrong.');
           setIsLoading(false);
+          setIsDisabled?.(false);
 
           return;
         }
@@ -85,8 +97,14 @@ export function LinkedInButton(props: LinkedInButtonProps) {
         // For non authentication pages, we want to redirect back to the page
         // the user was on before they clicked the social login button
         if (!['/login', '/signup'].includes(window.location.pathname)) {
+          const pagePath = ['/respond-invite', '/befriend', '/r', '/ai'].includes(
+            window.location.pathname,
+          )
+            ? window.location.pathname + window.location.search
+            : window.location.pathname;
+
           localStorage.setItem(LINKEDIN_REDIRECT_AT, Date.now().toString());
-          localStorage.setItem(LINKEDIN_LAST_PAGE, window.location.pathname);
+          localStorage.setItem(LINKEDIN_LAST_PAGE, pagePath);
         }
 
         window.location.href = response.loginUrl;
@@ -94,21 +112,22 @@ export function LinkedInButton(props: LinkedInButtonProps) {
       .catch((err) => {
         setError('Something went wrong. Please try again later.');
         setIsLoading(false);
+        setIsDisabled?.(false);
       });
   };
 
   return (
     <>
       <button
-        class="inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white p-2 text-sm font-medium text-black outline-none focus:ring-2 focus:ring-[#333] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
-        disabled={isLoading}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white p-2 text-sm font-medium text-black outline-none focus:ring-2 focus:ring-[#333] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isLoading || isDisabled}
         onClick={handleClick}
       >
-        <img
-          src={icon}
-          alt="Google"
-          class={`h-[18px] w-[18px] ${isLoading ? 'animate-spin' : ''}`}
-        />
+        {isLoading ? (
+          <Spinner className={'h-[18px] w-[18px]'} isDualRing={false} />
+        ) : (
+          <LinkedInIcon className={'h-[18px] w-[18px]'} />
+        )}
         Continue with LinkedIn
       </button>
       {error && (

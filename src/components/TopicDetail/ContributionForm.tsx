@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'react';
 import { httpPost } from '../../lib/http';
+import { useToast } from '../../hooks/use-toast';
 
 type ContributionInputProps = {
   id: number;
@@ -116,6 +117,7 @@ type ContributionFormProps = {
 
 export function ContributionForm(props: ContributionFormProps) {
   const { onClose, resourceType, resourceId, topicId } = props;
+  const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [links, setLinks] = useState<
     { id: number; title: string; link: string }[]
@@ -144,7 +146,7 @@ export function ContributionForm(props: ContributionFormProps) {
     setIsSubmitting(false);
 
     if (!response || error) {
-      alert(error?.message || 'Something went wrong. Please try again.');
+      toast.error(error?.message || 'Something went wrong. Please try again.');
       return;
     }
 
@@ -155,7 +157,7 @@ export function ContributionForm(props: ContributionFormProps) {
     <div>
       <div className="mb-2 mt-2 rounded-md border bg-gray-100 p-3">
         <h1 className="mb-2 text-2xl font-bold">Guidelines</h1>
-        <ul class="flex flex-col gap-1 text-sm text-gray-700">
+        <ul className="flex flex-col gap-1 text-sm text-gray-700">
           <li>Content should only be in English.</li>
           <li>Do not add things you have not evaluated personally.</li>
           <li>It should strictly be relevant to the topic.</li>

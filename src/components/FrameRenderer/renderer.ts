@@ -1,16 +1,19 @@
 import { wireframeJSONToSVG } from 'roadmap-renderer';
-import { httpPost } from '../../lib/http';
 import { isLoggedIn } from '../../lib/jwt';
+import type {
+  ResourceProgressType,
+  ResourceType,
+} from '../../lib/resource-progress';
 import {
   refreshProgressCounters,
   renderResourceProgress,
   renderTopicProgress,
-  ResourceProgressType,
-  ResourceType,
   updateResourceProgress,
 } from '../../lib/resource-progress';
 import { pageProgressMessage } from '../../stores/page';
 import { showLoginPopup } from '../../lib/popup';
+import { replaceChildren } from '../../lib/dom.ts';
+import { setUrlParams } from '../../lib/browser.ts';
 
 export class Renderer {
   resourceId: string;
@@ -89,12 +92,12 @@ export class Renderer {
         });
       })
       .then((svg) => {
-        this.containerEl?.replaceChildren(svg);
+        replaceChildren(this.containerEl!, svg);
       })
       .then(() => {
         return renderResourceProgress(
           this.resourceType as ResourceType,
-          this.resourceId
+          this.resourceId,
         );
       })
       .catch((error) => {
@@ -113,19 +116,6 @@ export class Renderer {
       });
   }
 
-  trackVisit() {
-    if (!isLoggedIn()) {
-      return;
-    }
-
-    window.setTimeout(() => {
-      httpPost(`${import.meta.env.PUBLIC_API_URL}/v1-visit`, {
-        resourceId: this.resourceId,
-        resourceType: this.resourceType,
-      }).then(() => null);
-    }, 0);
-  }
-
   onDOMLoaded() {
     if (!this.prepareConfig()) {
       return;
@@ -134,15 +124,13 @@ export class Renderer {
     const urlParams = new URLSearchParams(window.location.search);
     const roadmapType = urlParams.get('r');
 
-    this.trackVisit();
-
     if (roadmapType) {
       this.switchRoadmap(`/${roadmapType}.json`);
     } else {
       this.jsonToSvg(
         this.resourceType === 'roadmap'
           ? `/${this.resourceId}.json`
-          : `/best-practices/${this.resourceId}.json`
+          : `/best-practices/${this.resourceId}.json`,
       );
     }
   }
@@ -152,19 +140,8 @@ export class Renderer {
 
     const newJsonFileSlug = newJsonUrl.split('/').pop()?.replace('.json', '');
 
-    // Update the URL and attach the new roadmap type
-    if (window?.history?.pushState) {
-      const url = new URL(window.location.href);
-      const type = this.resourceType[0]; // r for roadmap, b for best-practices
-
-      url.searchParams.delete(type);
-
-      if (newJsonFileSlug !== this.resourceId) {
-        url.searchParams.set(type, newJsonFileSlug!);
-      }
-
-      window.history.pushState(null, '', url.toString());
-    }
+    const type = this.resourceType[0]; // r for roadmap, b for best-practices
+    setUrlParams({ [type]: newJsonFileSlug! });
 
     this.jsonToSvg(newJsonUrl)?.then(() => {});
   }
@@ -182,7 +159,7 @@ export class Renderer {
         resourceType: this.resourceType as ResourceType,
         topicId,
       },
-      newStatus
+      newStatus,
     )
       .then(() => {
         renderTopicProgress(topicId, newStatus);
@@ -206,14 +183,23 @@ export class Renderer {
       return;
     }
 
+    if (targetGroup.classList.contains('removed')) {
+      return;
+    }
+
     e.preventDefault();
 
     const isCurrentStatusDone = targetGroup.classList.contains('done');
     const normalizedGroupId = groupId.replace(/^\d+-/, '');
+
+    if (normalizedGroupId.startsWith('ext_link:')) {
+      return;
+    }
+
     this.updateTopicStatus(
-        normalizedGroupId,
-        !isCurrentStatusDone ? 'done' : 'pending'
-      );
+      normalizedGroupId,
+      !isCurrentStatusDone ? 'done' : 'pending',
+    );
   }
 
   handleSvgClick(e: any) {
@@ -225,6 +211,10 @@ export class Renderer {
 
     e.stopImmediatePropagation();
 
+    if (targetGroup.classList.contains('removed')) {
+      return;
+    }
+
     if (/^ext_link/.test(groupId)) {
       const externalLink = groupId.replace('ext_link:', '');
 
@@ -234,9 +224,12 @@ export class Renderer {
           action: `${this.resourceType} / ${this.resourceId}`,
           label: externalLink,
         });
+
+        window.open(`https://${externalLink}`);
+      } else {
+        window.location.href = `https://${externalLink}`;
       }
 
-      window.open(`https://${externalLink}`);
       return;
     }
 
@@ -256,7 +249,7 @@ export class Renderer {
             resourceType: this.resourceType,
             resourceId: this.resourceId,
           },
-        })
+        }),
       );
       return;
     }
@@ -271,7 +264,7 @@ export class Renderer {
       e.preventDefault();
       this.updateTopicStatus(
         normalizedGroupId,
-        !isCurrentStatusLearning ? 'learning' : 'pending'
+        !isCurrentStatusLearning ? 'learning' : 'pending',
       );
       return;
     }
@@ -280,7 +273,7 @@ export class Renderer {
       e.preventDefault();
       this.updateTopicStatus(
         normalizedGroupId,
-        !isCurrentStatusSkipped ? 'skipped' : 'pending'
+        !isCurrentStatusSkipped ? 'skipped' : 'pending',
       );
 
       return;
@@ -293,7 +286,7 @@ export class Renderer {
           resourceId: this.resourceId,
           resourceType: this.resourceType,
         },
-      })
+      }),
     );
   }
 

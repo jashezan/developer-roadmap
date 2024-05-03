@@ -4,14 +4,16 @@ import FeaturedGuides from '../components/FeaturedGuides.astro';
 import FeaturedItems from '../components/FeaturedItems/FeaturedItems.astro';
 import HeroSection from '../components/HeroSection/HeroSection.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getAllBestPractices } from '../lib/best-pratice';
+import { getAllBestPractices } from '../lib/best-practice';
 import { getAllGuides } from '../lib/guide';
 import { getRoadmapsByTag } from '../lib/roadmap';
 import { getAllVideos } from '../lib/video';
+import { getAllQuestionGroups } from '../lib/question-group';
 
 const roleRoadmaps = await getRoadmapsByTag('role-roadmap');
 const skillRoadmaps = await getRoadmapsByTag('skill-roadmap');
 const bestPractices = await getAllBestPractices();
+const questionGroups = await getAllQuestionGroups();
 
 const guides = await getAllGuides();
 const videos = await getAllVideos();
@@ -27,25 +29,31 @@ const videos = await getAllVideos();
 
     <FeaturedItems
       heading='Role based Roadmaps'
-      featuredItems={roleRoadmaps.map((roadmapItem) => ({
-        text: roadmapItem.frontmatter.briefTitle,
-        url: `/${roadmapItem.id}`,
-        isNew: roadmapItem.frontmatter.isNew,
-        isUpcoming: roadmapItem.frontmatter.isUpcoming,
-      }))}
+      featuredItems={roleRoadmaps
+        .filter((roadmapItem) => !roadmapItem.frontmatter.isHidden)
+        .map((roadmapItem) => ({
+          text: roadmapItem.frontmatter.briefTitle,
+          url: `/${roadmapItem.id}`,
+          isNew: roadmapItem.frontmatter.isNew,
+          isUpcoming: roadmapItem.frontmatter.isUpcoming,
+        }))}
+      showCreateRoadmap={true}
     />
 
     <FeaturedItems
       heading='Skill based Roadmaps'
-      featuredItems={skillRoadmaps.map((roadmapItem) => ({
-        text:
-          roadmapItem.frontmatter.briefTitle === 'Go'
-            ? 'Go Roadmap'
-            : roadmapItem.frontmatter.briefTitle,
-        url: `/${roadmapItem.id}`,
-        isNew: roadmapItem.frontmatter.isNew,
-        isUpcoming: roadmapItem.frontmatter.isUpcoming,
-      }))}
+      featuredItems={skillRoadmaps
+        .filter((roadmapItem) => !roadmapItem.frontmatter.isHidden)
+        .map((roadmapItem) => ({
+          text:
+            roadmapItem.frontmatter.briefTitle === 'Go'
+              ? 'Go Roadmap'
+              : roadmapItem.frontmatter.briefTitle,
+          url: `/${roadmapItem.id}`,
+          isNew: roadmapItem.frontmatter.isNew,
+          isUpcoming: roadmapItem.frontmatter.isUpcoming,
+        }))}
+      showCreateRoadmap={true}
     />
 
     <FeaturedItems
@@ -55,6 +63,16 @@ const videos = await getAllVideos();
         url: `/best-practices/${bestPractice.id}`,
         isNew: bestPractice.frontmatter.isNew,
         isUpcoming: bestPractice.frontmatter.isUpcoming,
+      }))}
+    />
+
+    <FeaturedItems
+      heading='Questions'
+      allowBookmark={false}
+      featuredItems={questionGroups.map((questionGroup) => ({
+        text: questionGroup.frontmatter.briefTitle,
+        url: `/questions/${questionGroup.id}`,
+        isNew: questionGroup.frontmatter.isNew,
       }))}
     />
 

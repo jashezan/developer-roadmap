@@ -1,12 +1,19 @@
 ---
 import { FavoriteRoadmaps } from './FavoriteRoadmaps';
+import { AIAnnouncement } from "../AIAnnouncement";
 ---
 
-<div class='relative min-h-auto min-h-[192px] sm:min-h-[281px] border-b border-b-[#1e293c]'>
+<div
+  class='min-h-auto relative min-h-[192px] border-b border-b-[#1e293c] transition-all sm:min-h-[281px]'
+>
   <div
-    class='container px-6 py-6 pb-14 text-left sm:px-0 sm:py-20 sm:text-center transition-opacity duration-300'
+    class='container px-5 py-6 pb-14 text-left transition-opacity duration-300 sm:px-0 sm:py-20 sm:text-center'
     id='hero-text'
   >
+    <p class='-mt-4 mb-7 sm:-mt-10'>
+      <AIAnnouncement />
+    </p>
+
     <h1
       class='mb-2 bg-gradient-to-b from-amber-50 to-purple-500 bg-clip-text text-2xl font-bold text-transparent sm:mb-4 sm:text-5xl'
     >
@@ -24,5 +31,5 @@ import { FavoriteRoadmaps } from './FavoriteRoadmaps';
       their career.
     </p>
   </div>
-  <FavoriteRoadmaps client:authenticated />
+  <FavoriteRoadmaps client:only='react' />
 </div>

@@ -6,7 +6,7 @@ briefTitle: 'Code Review'
 briefDescription: 'Learn what to focus on when conducting a code review.'
 title: 'Code Review Pyramid'
 description: 'Learn what to focus on when conducting a code review.'
-isNew: true
+isNew: false
 hasTopics: true
 dimensions:
   width: 968
@@ -26,7 +26,7 @@ seo:
     - 'code review for beginners'
     - 'code reviews'
     - 'code review best practices'
-    - 'code review roadmap 2023'
+    - 'code review roadmap 2024'
     - 'guide to learning code review'
     - 'code review roadmap'
     - 'code review learning path'

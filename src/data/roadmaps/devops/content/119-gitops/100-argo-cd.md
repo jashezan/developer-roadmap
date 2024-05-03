@@ -8,5 +8,5 @@ Argo CD is designed to be a simple and efficient way to manage cloud-native appl
 
 Visit the following resources to learn more:
 
-- [Argo CD - Argo Project](https://argoproj.github.io/docs/argo-cd/)
-- [ArgoCD Tutorial for Beginners](https://www.youtube.com/watch?v=meu5_k9ssrs&list=ply7nrywoggjxtn4ybsmyffdpaxb-fr4zc&index=6)
+- [Argo CD - Argo Project](https://argo-cd.readthedocs.io/en/stable/)
+- [ArgoCD Tutorial for Beginners](https://www.youtube.com/watch?v=MeU5_k9ssrs)
